@@ -20,13 +20,24 @@ struct Node {
     is_input: bool,
 }
 
+/// Methods for the `Node` struct.
 impl Node {
+    /// Creates a new node.
     pub fn new(is_input: bool) -> Self {
-        todo!()
+        Self {
+            value: None,
+            operation: Operation::None,
+            is_input,
+        }
     }
 
+    /// Creates a new node with a constant value.
     pub fn new_const(value: u32) -> Self {
-        todo!()
+        Self {
+            value: Some(value),
+            operation: Operation::None,
+            is_input: false,
+        }
     }
 }
 
