@@ -44,17 +44,29 @@ impl Node {
 impl Builder {
     /// Creates a new builder.
     pub fn new() -> Self {
-        todo!()
+        Self {
+            nodes: vec![],
+            constraints: vec![],
+            hints: vec![],
+            input_nodes_count: 0,
+        }
     }
 
     /// Initializes an input node in the graph.
     pub fn init(&mut self) -> usize {
-        todo!()
+        let node = Box::new(Node::new(true));
+        self.nodes.push(node);
+        self.input_nodes_count += 1;
+        let idx = self.nodes.len() - 1;
+        idx
     }
 
     /// Initializes a node in a graph, set to a constant value.
     pub fn constant(&mut self, value: u32) -> usize {
-        todo!()
+        let node = Box::new(Node::new_const(value));
+        self.nodes.push(node);
+        let idx = self.nodes.len() - 1;
+        idx
     }
 
     /// Adds 2 nodes in the graph, returning a new node.
