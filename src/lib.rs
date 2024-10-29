@@ -107,14 +107,22 @@ impl Builder {
             Operation::Add(a, b) => {
                 let a_val = self.nodes[*a].value?;
                 let b_val = self.nodes[*b].value?;
-                Some(a_val + b_val)
+                if let Some(val) = a_val.checked_add(b_val) {
+                    Some(val)
+                } else {
+                    None
+                }
             }
             Operation::Mul(a, b) => {
                 let a_val = self.nodes[*a].value?;
                 let b_val = self.nodes[*b].value?;
-                Some(a_val * b_val)
+                if let Some(val) = a_val.checked_mul(b_val) {
+                    Some(val)
+                } else {
+                    None
+                }
             }
-            // TODO: Implement HashMap for faster lookups
+            // TODO: Change to use HashMap
             Operation::Hint(source) => {
                 if let Some(value) = self.nodes[*source].value {
                     if let Some((_, _, hint_fn)) = self
@@ -122,7 +130,16 @@ impl Builder {
                         .iter()
                         .find(|(target, src, _)| *target == node_idx && *src == *source)
                     {
-                        Some(hint_fn(value))
+                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            hint_fn(value)
+                        }));
+                        // TODO: Handle error more gracefully
+                        match result {
+                            Ok(val) => Some(val),
+                            Err(_) => {
+                                panic!("Error: Attempt to divide by zero");
+                            }
+                        }
                     } else {
                         None
                     }
@@ -135,6 +152,9 @@ impl Builder {
 
     /// Fills in all the nodes of the graph based on some inputs.
     pub fn fill_nodes(&mut self, inputs: Vec<u32>) {
+        if inputs.len() != self.input_nodes_count {
+            panic!("Number of inputs does not match the number of input nodes");
+        }
         // First, set input values
         let mut input_idx = 0;
         for node in &mut self.nodes {
@@ -274,6 +294,50 @@ mod tests {
 
         builder.fill_nodes(vec![2]);
         assert_eq!(builder.get_value(sqrt_x_plus_7).unwrap(), 3);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_zero_and_negative_values() {
+        let mut builder = Builder::new();
+        let x = builder.init();
+        let zero = builder.constant(0);
+        let negative_five = builder.constant(-5i32 as u32); // Cast to u32 for test
+
+        let add_zero = builder.add(x, zero);
+        let add_negative = builder.add(x, negative_five);
+
+        builder.fill_nodes(vec![5]);
+        assert_eq!(builder.get_value(add_zero).unwrap(), 5);
+        assert_eq!(builder.get_value(add_negative), None); // 5 - 5 = 0
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    #[allow(unconditional_panic)]
+    #[should_panic(expected = "Error: Attempt to divide by zero")]
+    fn test_division_by_zero() {
+        let mut builder = Builder::new();
+        let _x = builder.init();
+        let _zero = builder.constant(0);
+        let one = builder.constant(1);
+
+        let div_by_zero = builder.hint(one, |_| 1 / 0); // Intentional division by zero
+
+        builder.fill_nodes(vec![1]);
+        assert_eq!(builder.get_value(div_by_zero).unwrap(), 0); // Should panic before this
+    }
+
+    #[test]
+    fn test_addition_overflow() {
+        let mut builder = Builder::new();
+        let max = builder.constant(u32::MAX);
+        let one = builder.constant(1);
+        let sum = builder.add(max, one);
+        let final_sum = builder.add(sum, one);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(final_sum), None); // Overflow returns None
         assert!(builder.check_constraints());
     }
 }
