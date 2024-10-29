@@ -84,7 +84,7 @@ impl Builder {
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
         if self.verbose {
-            info!("INIT_CONST – node {} = {}", idx, value);
+            debug!("INIT_CONST – node {} = {}", idx, value);
         }
         idx
     }
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_x_squared_plus_x_plus_5() {
-        // f(x) = x^2 + x + 5
+        // Example 1: f(x) = x^2 + x + 5
 
         let mut builder = Builder::new(true);
         let x = builder.init();
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn a_plus_1_over_8() {
-        // f(a) = (a+1) / 8
+        // Example 2: f(a) = (a+1) / 8
         //
         // function f(a):
         //     b = a + 1
