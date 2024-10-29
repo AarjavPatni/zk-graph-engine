@@ -233,7 +233,7 @@ impl Builder {
                     None
                 }
             }
-            // TODO: Change to use HashMap
+
             Operation::Hint(source) => {
                 let source_value = self.nodes[*source].value?;
 
