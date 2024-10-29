@@ -1,3 +1,6 @@
+//! Author: Aarjav Patni
+//! Date: 2024-10-29
+//!
 //! A computational graph library for zero-knowledge proofs.
 //!
 //! This crate provides a builder pattern for creating and executing computational graphs
