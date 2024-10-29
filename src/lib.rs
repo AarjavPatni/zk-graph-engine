@@ -1,8 +1,39 @@
+//! A computational graph implementation for mathematical operations.
+//!
+//! This crate provides a builder pattern for creating and executing computational graphs
+//! with support for basic arithmetic operations, constraints, and hints.
+//!
+//! Features:
+//! - Basic arithmetic operations (addition, multiplication)
+//! - Input nodes and constant values
+//! - Constraint checking between nodes
+//! - Hint system for custom operations
+//! - Verbose logging support
+//!
+//! # Example
+//! ```
+//! use zk_graph_engine::Builder;
+//!
+//! let mut builder = Builder::new(true);
+//! let x = builder.init();  // Create input node
+//! let y = builder.constant(5);  // Create constant node
+//! let sum = builder.add(x, y);  // Add nodes
+//!
+//! builder.fill_nodes(vec![3]);  // Set input value
+//! assert_eq!(builder.get_value(sum).unwrap(), 8);
+//! ```
+
 use log::{debug, error, info, warn};
 use simple_logger::SimpleLogger;
 use std::sync::Once;
 
 /// A builder that will be used to create a computational graph.
+/// Components:
+/// - nodes: list of references to nodes.
+/// - constraints: list of pairs of node indices that must be equal.
+/// - hints: list of tuples containing a target node index, a source node index, and a hint function.
+/// - input_nodes_count: number of input nodes.
+/// - verbose: whether to print debug information.
 pub struct Builder {
     nodes: Vec<Box<Node>>,
     constraints: Vec<(usize, usize)>,
@@ -11,6 +42,11 @@ pub struct Builder {
     verbose: bool,
 }
 
+/// Enum representing the different types of operations that can be performed on nodes.
+/// - None: No operation. Used for input and constant nodes.
+/// - Add: Addition of two nodes.
+/// - Mul: Multiplication of two nodes.
+/// - Hint: A custom operation defined by a hint function upon calling fill_nodes.
 enum Operation {
     None,
     Add(usize, usize),
@@ -19,6 +55,10 @@ enum Operation {
 }
 
 /// A node in the computational graph.
+/// Components:
+/// - `value`: the value of the node, if it has been computed.
+/// - `operation`: the operation used to compute the node.
+/// - `is_input`: whether the node is an input node.
 struct Node {
     value: Option<u32>,
     operation: Operation,
@@ -46,8 +86,11 @@ impl Node {
     }
 }
 
+/// Methods for the `Builder` struct.
 impl Builder {
     /// Creates a new builder.
+    /// Parameters:
+    /// - verbose: If true, enables logging of operations for debugging purposes.
     pub fn new(verbose: bool) -> Self {
         // Initialize the logger once
         static INIT: Once = Once::new();
@@ -190,7 +233,7 @@ impl Builder {
         }
     }
 
-    /// Fills in all the nodes of the graph based on some inputs.
+    /// Fills the input nodes with values and performs a forward pass of the graph.
     pub fn fill_nodes(&mut self, inputs: Vec<u32>) {
         if inputs.len() != self.input_nodes_count {
             error!(
