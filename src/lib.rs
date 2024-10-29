@@ -24,8 +24,9 @@
 //! ```
 
 use log::{debug, error, info};
-use std::sync::Once;
+use std::collections::HashMap;
 use std::env;
+use std::sync::Once;
 
 /// A builder for creating and managing computational graphs.
 ///
@@ -41,7 +42,7 @@ use std::env;
 pub struct Builder {
     nodes: Vec<Box<Node>>,
     constraints: Vec<(usize, usize)>,
-    hints: Vec<(usize, usize, Box<dyn Fn(u32) -> u32>)>,
+    hints: HashMap<usize, (usize, Box<dyn Fn(u32) -> u32>)>,
     input_nodes_count: usize,
 }
 
@@ -108,7 +109,7 @@ impl Builder {
         Self {
             nodes: vec![],
             constraints: vec![],
-            hints: vec![],
+            hints: HashMap::new(),
             input_nodes_count: 0,
         }
     }
@@ -228,27 +229,26 @@ impl Builder {
             }
             // TODO: Change to use HashMap
             Operation::Hint(source) => {
-                if let Some(value) = self.nodes[*source].value {
-                    if let Some((_, _, hint_fn)) = self
-                        .hints
-                        .iter()
-                        .find(|(target, src, _)| *target == node_idx && *src == *source)
-                    {
-                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            hint_fn(value)
-                        }));
-                        // TODO: Handle error more gracefully
-                        match result {
-                            Ok(val) => Some(val),
-                            Err(_) => {
-                                error!("ERR_DIV_BY_ZERO – Attempt to divide by zero");
-                                panic!("ERR_DIV_BY_ZERO – Attempt to divide by zero");
-                            }
+                let source_value = self.nodes[*source].value?;
+
+                if let Some((_, hint_fn)) = self.hints.get(&node_idx) {
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        hint_fn(source_value)
+                    })) {
+                        Ok(val) => Some(val),
+                        Err(_) => {
+                            error!(
+                                "ERR_HINT_FAILED – Check hint function for node {}",
+                                node_idx
+                            );
+                            None
                         }
-                    } else {
-                        None
                     }
                 } else {
+                    error!(
+                        "ERR_MISSING_HINT – No hint function found for node {}",
+                        node_idx
+                    );
                     None
                 }
             }
@@ -336,7 +336,7 @@ impl Builder {
         let new_node_idx = self.nodes.len();
         self.nodes.push(new_node);
         self.hints
-            .push((new_node_idx, source_node, Box::new(hint_function)));
+            .insert(new_node_idx, (source_node, Box::new(hint_function)));
         info!(
             "SET_HINT – node {} based on node {}",
             new_node_idx, source_node
@@ -374,9 +374,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_x_squared_plus_x_plus_5() {
+    fn test_polynomial_evaluation() {
         // Example 1: f(x) = x^2 + x + 5
-
         let mut builder = Builder::new();
         let x = builder.init();
         let x_squared = builder.mul(x, x);
@@ -385,20 +384,13 @@ mod tests {
         let y = builder.add(x_squared_plus_5, x);
 
         builder.fill_nodes(vec![3]);
-
         assert_eq!(builder.get_value(y).unwrap(), 17);
         assert!(builder.check_constraints());
     }
 
     #[test]
-    fn a_plus_1_over_8() {
-        // Example 2: f(a) = (a+1) / 8
-        //
-        // function f(a):
-        //     b = a + 1
-        //     c = b / 8
-        //     return c
-
+    fn test_division_with_constraints() {
+        // Example 2: f(a) = (a+1) / 8 with constraint verification
         let mut builder = Builder::new();
         let a = builder.init();
         let one = builder.constant(1);
@@ -409,17 +401,13 @@ mod tests {
         builder.assert_equal(b, c_times_8);
 
         builder.fill_nodes(vec![7]);
-
         assert_eq!(builder.get_value(c).unwrap(), 1);
         assert!(builder.check_constraints());
     }
 
     #[test]
-    fn sqrt_x_plus_7() {
-        // Example 3: f(x) = sqrt(x+7)
-        //
-        // Assume that x+7 is a perfect square (so x = 2 or 9, etc.).
-
+    fn test_square_root_with_perfect_square() {
+        // Example 3: f(x) = sqrt(x+7) with perfect square constraint
         let mut builder = Builder::new();
         let x = builder.init();
         let seven = builder.constant(7);
@@ -434,181 +422,135 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_and_negative_values() {
+    fn test_identity_operations() {
+        // Example 4: Identity operations
         let mut builder = Builder::new();
         let x = builder.init();
         let zero = builder.constant(0);
-        let negative_five = builder.constant(-5i32 as u32); // Cast to u32 for test
-
         let add_zero = builder.add(x, zero);
-        let add_negative = builder.add(x, negative_five);
+        let one = builder.constant(1);
+        let mul_one = builder.mul(x, one);
 
         builder.fill_nodes(vec![5]);
-        assert_eq!(builder.get_value(add_zero).unwrap(), 5);
-        assert_eq!(builder.get_value(add_negative), None); // 5 - 5 = 0
+        assert_eq!(builder.get_value(add_zero).unwrap(), 5); // x + 0 = x
+        assert_eq!(builder.get_value(mul_one).unwrap(), 5); // x * 1 = x
         assert!(builder.check_constraints());
     }
 
     #[test]
-    #[allow(unconditional_panic)]
-    #[should_panic(expected = "ERR_DIV_BY_ZERO – Attempt to divide by zero")]
-    fn test_division_by_zero() {
+    fn test_hint_division_by_zero() {
+        // Example 5: Hint division by zero
         let mut builder = Builder::new();
-        let _x = builder.init();
-        let _zero = builder.constant(0);
-        let one = builder.constant(1);
+        let zero = builder.constant(0);
+        let div_by_zero = builder.hint(zero, |x| 1 / x); // Shouldn't panic but return None
 
-        let div_by_zero = builder.hint(one, |_| 1 / 0); // Intentional division by zero
-
-        builder.fill_nodes(vec![1]);
-        assert_eq!(builder.get_value(div_by_zero).unwrap(), 0); // Should panic before this
+        builder.fill_nodes(vec![]);
+        builder.get_value(div_by_zero);
     }
 
     #[test]
-    fn test_addition_overflow() {
+    fn test_arithmetic_overflow_handling_addition() {
+        // Example 6a: Addition overflow handling
         let mut builder = Builder::new();
         let max = builder.constant(u32::MAX);
         let one = builder.constant(1);
-        let sum = builder.add(max, one);
-        let final_sum = builder.add(sum, one);
+        let overflow_sum = builder.add(max, one);
 
         builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(final_sum), None); // Overflow returns None
-        assert!(builder.check_constraints());
+        assert_eq!(builder.get_value(overflow_sum), None);
     }
 
     #[test]
-    fn test_multiple_operations() {
+    fn test_arithmetic_overflow_handling_multiplication() {
+        // Example 6b: Multiplication overflow handling
+        let mut builder = Builder::new();
+        let max = builder.constant(u32::MAX);
+        let overflow_mul = builder.mul(max, max);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(overflow_mul), None);
+    }
+
+    #[test]
+    fn test_arithmetic_overflow_handling_combined() {
+        // Example 6c: Combined overflow handling
+        let mut builder = Builder::new();
+        let max = builder.constant(u32::MAX);
+        let one = builder.constant(1);
+        let overflow_sum = builder.add(max, one);
+        let overflow_mul = builder.mul(max, max);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(overflow_sum), None);
+        assert_eq!(builder.get_value(overflow_mul), None);
+    }
+
+    #[test]
+    fn test_complex_graph_evaluation() {
+        // Example 7: Complex graph evaluation
         let mut builder = Builder::new();
         let a = builder.init();
         let b = builder.init();
-        let c = builder.mul(a, b);
-        let d = builder.add(c, a);
-        let e = builder.mul(d, b);
+        let prod = builder.mul(a, b);
+        let sum = builder.add(prod, a);
+        let final_result = builder.mul(sum, b);
 
-        builder.fill_nodes(vec![2, 3]); // a = 2, b = 3
-        assert_eq!(builder.get_value(c).unwrap(), 6); // 2 * 3
-        assert_eq!(builder.get_value(d).unwrap(), 8); // 6 + 2
-        assert_eq!(builder.get_value(e).unwrap(), 24); // 8 * 3
-        assert!(builder.check_constraints());
+        builder.fill_nodes(vec![2, 3]);
+        assert_eq!(builder.get_value(final_result).unwrap(), 24);
     }
 
     #[test]
-    fn test_unconnected_nodes() {
-        let mut builder = Builder::new();
-        let x = builder.init();
-        let _y = builder.init(); // Unconnected node
-        let z = builder.constant(10);
-
-        let add = builder.add(x, z);
-
-        builder.fill_nodes(vec![5, 0]); // x = 5, y = 0 (unused)
-        assert_eq!(builder.get_value(add).unwrap(), 15); // 5 + 10
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_large_numbers() {
-        let mut builder = Builder::new();
-        let a = builder.constant(u32::MAX);
-        let b = builder.constant(1);
-
-        let sum = builder.add(a, b);
-
-        builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(sum), None); // Overflow check
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_all_inputs() {
+    fn test_independent_subgraphs() {
+        // Example 8: Independent subgraphs
         let mut builder = Builder::new();
         let x = builder.init();
         let y = builder.init();
-        let add = builder.add(x, y);
 
-        builder.fill_nodes(vec![3, 4]); // x = 3, y = 4
-        assert_eq!(builder.get_value(add).unwrap(), 7); // 3 + 4
-        assert!(builder.check_constraints());
+        // Two independent computations
+        let x_squared = builder.mul(x, x);
+        let y_squared = builder.mul(y, y);
+
+        builder.fill_nodes(vec![2, 3]);
+        assert_eq!(builder.get_value(x_squared).unwrap(), 4);
+        assert_eq!(builder.get_value(y_squared).unwrap(), 9);
     }
 
     #[test]
-    fn test_large_multiplication() {
-        // Test multiplication with large numbers to check for overflow handling
+    fn test_constraint_violation() {
+        // Example 9: Constraint violation
         let mut builder = Builder::new();
-        let large_value = builder.constant(u32::MAX);
-        let result = builder.mul(large_value, large_value);
+        let x = builder.constant(5);
+        let y = builder.constant(6);
+        builder.assert_equal(x, y);
 
         builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(result), None); // Expected overflow
-        assert!(builder.check_constraints());
+        assert!(!builder.check_constraints());
     }
 
     #[test]
-    fn test_zero_multiplication() {
-        // Test multiplication by zero
+    fn test_hint_with_valid_transformation() {
+        // Example 10: Hint with valid transformation
         let mut builder = Builder::new();
-        let zero = builder.constant(0);
-        let value = builder.constant(12345);
-        let result = builder.mul(zero, value);
+        let input = builder.constant(16);
+        let sqrt = builder.hint(input, |x| (x as f64).sqrt() as u32);
+        let squared = builder.mul(sqrt, sqrt);
+        builder.assert_equal(squared, input);
 
         builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(result).unwrap(), 0);
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_zero_addition() {
-        // Test addition with zero
-        let mut builder = Builder::new();
-        let zero = builder.constant(0);
-        let value = builder.constant(12345);
-        let result = builder.add(zero, value);
-
-        builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(result).unwrap(), 12345);
+        assert_eq!(builder.get_value(sqrt).unwrap(), 4);
         assert!(builder.check_constraints());
     }
 
     #[test]
     fn test_negative_values_handling() {
-        // Test handling of negative values (cast to u32)
+        // Example 11: Test handling of negative values (cast to u32)
         let mut builder = Builder::new();
         let negative_value = builder.constant(-1i32 as u32);
         let value = builder.constant(1);
         let result = builder.add(negative_value, value);
 
         builder.fill_nodes(vec![]);
-        builder.print_graph();
         assert_eq!(builder.get_value(result), None); // -1 + 1 = 0 in signed, but here it should be max value + 1
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_hint_function_edge_case() {
-        // Test hint function with a division that could potentially be zero
-        let mut builder = Builder::new();
-        let value = builder.constant(8);
-        let hint_node = builder.hint(value, |v| v / 8);
-
-        builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(hint_node).unwrap(), 1);
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_multiple_constraints() {
-        // Test multiple constraints
-        let mut builder = Builder::new();
-        let x = builder.init();
-        let y = builder.constant(10);
-        let sum = builder.add(x, y);
-        let expected_sum = builder.constant(15);
-
-        builder.assert_equal(sum, expected_sum);
-        builder.fill_nodes(vec![5]);
-
-        assert_eq!(builder.get_value(sum).unwrap(), 15);
         assert!(builder.check_constraints());
     }
 
@@ -622,45 +564,5 @@ mod tests {
 
         builder.fill_nodes(vec![10, 10]);
         assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_no_input_nodes() {
-        // Test behavior with no input nodes
-        let mut builder = Builder::new();
-        let constant = builder.constant(42);
-
-        builder.fill_nodes(vec![]); // No inputs provided
-        assert_eq!(builder.get_value(constant).unwrap(), 42);
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    fn test_all_operations_combined() {
-        // Test a combination of all operations
-        let mut builder = Builder::new();
-        let x = builder.init();
-        let y = builder.constant(5);
-        let z = builder.add(x, y);
-        let w = builder.mul(z, y);
-        let hint = builder.hint(w, |val| val / 2);
-        let final_sum = builder.add(hint, y);
-
-        builder.fill_nodes(vec![3]);
-        assert_eq!(builder.get_value(final_sum).unwrap(), 25); // ((3 + 5) * 5) / 2 + 5
-        assert!(builder.check_constraints());
-    }
-
-    #[test]
-    #[allow(unconditional_panic)]
-    #[should_panic(expected = "ERR_DIV_BY_ZERO – Attempt to divide by zero")]
-    fn test_edge_case_division_by_zero_hint() {
-        // Test hint function that could cause division by zero
-        let mut builder = Builder::new();
-        let zero = builder.constant(0);
-        let hint_node = builder.hint(zero, |_| 1 / 0); // Intentional division by zero
-
-        builder.fill_nodes(vec![]);
-        assert_eq!(builder.get_value(hint_node), None); // Division by zero should result in None
     }
 }

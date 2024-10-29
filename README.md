@@ -8,16 +8,17 @@ This Rust library provides a framework for creating and executing computational 
 - [x]  **Input and Constant Nodes**: Allows initialization of input nodes and constant values.
 - [x]  **Constraint Checking**: Enables assertions of equality between nodes to ensure constraints are maintained.
 - [x]  **Hint System**: Allows custom operations using hints for values computed outside the graph (e.g., division or square roots).
-- [ ]  **Comprehensive Testing**: Includes a suite of tests covering various use cases and edge cases.
-- [ ]  **Verbose Logging**: Configurable logging for debugging and monitoring purposes.
+- [x]  **Comprehensive Testing**: Includes a suite of tests covering various use cases and edge cases.
+- [x]  **Verbose Logging**: Configurable logging for debugging and monitoring purposes.
 
 
 ## Assumptions
 
 This implementation assumes the following design decisions:
 
+- Nodes can only hold values of type `u32`.
 - Addition and multiplication overflow errors shouldn't panic but return `None` instead, along with an error log message.
-- Division by zero should panic with a clear error message.
+- Invalid hint functions (e.g., division by zero) shouldn't panic but return `None` instead, along with a clear error message.
 
 
 ## Testing
