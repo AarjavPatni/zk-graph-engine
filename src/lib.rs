@@ -163,7 +163,18 @@ impl Builder {
     /// Given a graph that has `fill_nodes` already called on it
     /// checks that all the constraints hold.
     pub fn check_constraints(&self) -> bool {
-        todo!()
+        for (a, b) in &self.constraints {
+            match (self.nodes[*a].value, self.nodes[*b].value) {
+                (Some(val_a), Some(val_b)) if val_a != val_b => {
+                    return false;
+                }
+                (None, _) | (_, None) => {
+                    return false;
+                }
+                _ => continue,
+            }
+        }
+        true
     }
 
     /// An API for hinting values that allows you to perform operations
@@ -172,7 +183,16 @@ impl Builder {
     where
         F: Fn(u32) -> u32 + 'static,
     {
-        todo!()
+        let new_node = Box::new(Node {
+            value: None,
+            operation: Operation::Hint(source_node),
+            is_input: false,
+        });
+        let new_node_idx = self.nodes.len();
+        self.nodes.push(new_node);
+        self.hints
+            .push((new_node_idx, source_node, Box::new(hint_function)));
+        new_node_idx
     }
 
     pub fn print_graph(&self) {

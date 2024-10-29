@@ -6,8 +6,8 @@ This Rust library provides a framework for creating and executing computational 
 
 - [x]  **Basic Arithmetic Operations**: Supports addition and multiplication of nodes.
 - [x]  **Input and Constant Nodes**: Allows initialization of input nodes and constant values.
-- [ ]  **Constraint Checking**: Enables assertions of equality between nodes to ensure constraints are maintained.
-- [ ]  **Hint System**: Allows custom operations using hints for values computed outside the graph (e.g., division or square roots).
+- [x]  **Constraint Checking**: Enables assertions of equality between nodes to ensure constraints are maintained.
+- [x]  **Hint System**: Allows custom operations using hints for values computed outside the graph (e.g., division or square roots).
 - [ ]  **Comprehensive Testing**: Includes a suite of tests covering various use cases and edge cases.
 - [ ]  **Verbose Logging**: Configurable logging for debugging and monitoring purposes.
 
