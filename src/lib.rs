@@ -200,6 +200,10 @@ impl Builder {
             println!("Node {}: {:?}", i, node.value);
         }
     }
+
+    pub fn get_value(&self, node_idx: usize) -> Option<u32> {
+        self.nodes[node_idx].value
+    }
 }
 
 #[cfg(test)]
@@ -214,7 +218,62 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_basic_add() {
-        todo!()
+    fn test_x_squared_plus_x_plus_5() {
+        // f(x) = x^2 + x + 5
+
+        let mut builder = Builder::new();
+        let x = builder.init();
+        let x_squared = builder.mul(x, x);
+        let five = builder.constant(5);
+        let x_squared_plus_5 = builder.add(x_squared, five);
+        let y = builder.add(x_squared_plus_5, x);
+
+        builder.fill_nodes(vec![3]);
+
+        assert_eq!(builder.get_value(y).unwrap(), 17);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn a_plus_1_over_8() {
+        // f(a) = (a+1) / 8
+        //
+        // function f(a):
+        //     b = a + 1
+        //     c = b / 8
+        //     return c
+
+        let mut builder = Builder::new();
+        let a = builder.init();
+        let one = builder.constant(1);
+        let b = builder.add(a, one);
+        let c = builder.hint(b, |b| b / 8);
+        let eight = builder.constant(8);
+        let c_times_8 = builder.mul(c, eight);
+        builder.assert_equal(b, c_times_8);
+
+        builder.fill_nodes(vec![7]);
+
+        assert_eq!(builder.get_value(c).unwrap(), 1);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn sqrt_x_plus_7() {
+        // Example 3: f(x) = sqrt(x+7)
+        //
+        // Assume that x+7 is a perfect square (so x = 2 or 9, etc.).
+
+        let mut builder = Builder::new();
+        let x = builder.init();
+        let seven = builder.constant(7);
+        let x_plus_seven = builder.add(x, seven);
+        let sqrt_x_plus_7 = builder.hint(x_plus_seven, |val| (val as f64).sqrt() as u32);
+        let computed_sq = builder.mul(sqrt_x_plus_7, sqrt_x_plus_7);
+        builder.assert_equal(computed_sq, x_plus_seven);
+
+        builder.fill_nodes(vec![2]);
+        assert_eq!(builder.get_value(sqrt_x_plus_7).unwrap(), 3);
+        assert!(builder.check_constraints());
     }
 }
