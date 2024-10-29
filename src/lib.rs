@@ -196,7 +196,9 @@ impl Builder {
     }
 
     pub fn print_graph(&self) {
-        todo!()
+        for (i, node) in self.nodes.iter().enumerate() {
+            println!("Node {}: {:?}", i, node.value);
+        }
     }
 }
 
