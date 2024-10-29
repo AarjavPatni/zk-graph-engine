@@ -5,6 +5,8 @@ This Rust library provides a framework for creating and executing computational 
 
 ## Installation
 
+Once published, you should be able to install the crate using the following command:
+
 ```bash
 cargo add zk-graph-engine
 ```
