@@ -1,17 +1,17 @@
-//! A computational graph implementation for mathematical operations.
+//! A computational graph library for mathematical operations.
 //!
 //! This crate provides a builder pattern for creating and executing computational graphs
 //! with support for basic arithmetic operations, constraints, and hints.
 //!
-//! Features:
+//! ## Features
 //! - Basic arithmetic operations (addition, multiplication)
 //! - Input nodes and constant values
 //! - Constraint checking between nodes
 //! - Hint system for custom operations
-//! - Verbose logging support
+//! - Verbose logging support for debugging
 //!
-//! # Example
-//! ```
+//! ## Example
+//! ```rust
 //! use zk_graph_engine::Builder;
 //!
 //! let mut builder = Builder::new(true);
@@ -23,17 +23,22 @@
 //! assert_eq!(builder.get_value(sum).unwrap(), 8);
 //! ```
 
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use simple_logger::SimpleLogger;
 use std::sync::Once;
 
-/// A builder that will be used to create a computational graph.
-/// Components:
-/// - nodes: list of references to nodes.
-/// - constraints: list of pairs of node indices that must be equal.
-/// - hints: list of tuples containing a target node index, a source node index, and a hint function.
-/// - input_nodes_count: number of input nodes.
-/// - verbose: whether to print debug information.
+/// A builder for creating and managing computational graphs.
+///
+/// The `Builder` struct allows for the construction of computational graphs
+/// consisting of nodes that perform arithmetic operations and can be checked
+/// for constraints.
+///
+/// # Components
+/// - `nodes`: List of nodes in the graph.
+/// - `constraints`: List of pairs of node indices that must be equal.
+/// - `hints`: List of tuples containing a target node index, a source node index, and a hint function.
+/// - `input_nodes_count`: Number of input nodes.
+/// - `verbose`: Whether to print debug information.
 pub struct Builder {
     nodes: Vec<Box<Node>>,
     constraints: Vec<(usize, usize)>,
@@ -42,11 +47,12 @@ pub struct Builder {
     verbose: bool,
 }
 
-/// Enum representing the different types of operations that can be performed on nodes.
-/// - None: No operation. Used for input and constant nodes.
-/// - Add: Addition of two nodes.
-/// - Mul: Multiplication of two nodes.
-/// - Hint: A custom operation defined by a hint function upon calling fill_nodes.
+/// Enum representing the types of operations that can be performed on nodes.
+///
+/// - `None`: No operation. Used for input and constant nodes.
+/// - `Add`: Addition of two nodes.
+/// - `Mul`: Multiplication of two nodes.
+/// - `Hint`: A custom operation defined by a hint function upon calling `fill_nodes`.
 enum Operation {
     None,
     Add(usize, usize),
@@ -55,10 +61,13 @@ enum Operation {
 }
 
 /// A node in the computational graph.
-/// Components:
-/// - `value`: the value of the node, if it has been computed.
-/// - `operation`: the operation used to compute the node.
-/// - `is_input`: whether the node is an input node.
+/// Values of the node are computed when `fill_nodes` is called.
+///
+/// # Components
+/// - `value`: The value of the node, if it has been computed.
+/// - `operation`: The operation used to compute the node.
+/// - `is_input`: Whether the node is an input node.
+/// 
 struct Node {
     value: Option<u32>,
     operation: Operation,
@@ -67,17 +76,17 @@ struct Node {
 
 /// Methods for the `Node` struct.
 impl Node {
-    /// Creates a new node.
-    pub fn new(is_input: bool) -> Self {
+    /// Creates a new input node.
+    fn new() -> Self {
         Self {
             value: None,
             operation: Operation::None,
-            is_input,
+            is_input: true,
         }
     }
 
     /// Creates a new node with a constant value.
-    pub fn new_const(value: u32) -> Self {
+    fn new_const(value: u32) -> Self {
         Self {
             value: Some(value),
             operation: Operation::None,
@@ -88,9 +97,10 @@ impl Node {
 
 /// Methods for the `Builder` struct.
 impl Builder {
-    /// Creates a new builder.
-    /// Parameters:
-    /// - verbose: If true, enables logging of operations for debugging purposes.
+    /// Creates a new `Builder`.
+    ///
+    /// # Parameters
+    /// - `verbose`: If true, enables logging of operations for debugging purposes.
     pub fn new(verbose: bool) -> Self {
         // Initialize the logger once
         static INIT: Once = Once::new();
@@ -110,8 +120,10 @@ impl Builder {
     }
 
     /// Initializes an input node in the graph.
+    ///
+    /// Returns the index of the newly created input node.
     pub fn init(&mut self) -> usize {
-        let node = Box::new(Node::new(true));
+        let node = Box::new(Node::new());
         self.nodes.push(node);
         self.input_nodes_count += 1;
         let idx = self.nodes.len() - 1;
@@ -121,7 +133,12 @@ impl Builder {
         idx
     }
 
-    /// Initializes a node in a graph, set to a constant value.
+    /// Initializes a node in the graph set to a constant value.
+    ///
+    /// # Parameters
+    /// - `value`: The constant value to assign to the node.
+    ///
+    /// Returns the index of the newly created constant node.
     pub fn constant(&mut self, value: u32) -> usize {
         let node = Box::new(Node::new_const(value));
         self.nodes.push(node);
@@ -132,7 +149,13 @@ impl Builder {
         idx
     }
 
-    /// Adds 2 nodes in the graph, returning a new node.
+    /// Adds two nodes in the graph, returning a new node.
+    ///
+    /// # Parameters
+    /// - `a`: The index of the first node to add.
+    /// - `b`: The index of the second node to add.
+    ///
+    /// Returns the index of the newly created node.
     pub fn add(&mut self, a: usize, b: usize) -> usize {
         let node = Box::new(Node {
             value: None,
@@ -147,7 +170,13 @@ impl Builder {
         idx
     }
 
-    /// Multiplies 2 nodes in the graph, returning a new node.
+    /// Multiplies two nodes in the graph, returning a new node.
+    ///
+    /// # Parameters
+    /// - `a`: The index of the first node to multiply.
+    /// - `b`: The index of the second node to multiply.
+    ///
+    /// Returns the index of the newly created node.
     pub fn mul(&mut self, a: usize, b: usize) -> usize {
         let node = Box::new(Node {
             value: None,
@@ -162,7 +191,11 @@ impl Builder {
         idx
     }
 
-    /// Asserts that 2 nodes are equal.
+    /// Asserts that two nodes are equal.
+    ///
+    /// # Parameters
+    /// - `a`: The index of the first node.
+    /// - `b`: The index of the second node.
     pub fn assert_equal(&mut self, a: usize, b: usize) {
         self.constraints.push((a, b));
         if self.verbose {
@@ -170,7 +203,12 @@ impl Builder {
         }
     }
 
-    /// Helper method to compute the value of a node based on its operation.
+    /// Computes the value of a node based on its operation.
+    ///
+    /// # Parameters
+    /// - `node_idx`: The index of the node to compute.
+    ///
+    /// Returns the computed value of the node, or `None` if it cannot be computed.
     fn compute_node_value(&self, node_idx: usize) -> Option<u32> {
         let node = &self.nodes[node_idx];
 
@@ -233,7 +271,12 @@ impl Builder {
         }
     }
 
-    /// Fills the input nodes with values and performs a forward pass of the graph.
+    /// Fills the input nodes with values and propagates values through the graph.
+    ///
+    /// # Parameters
+    /// - `inputs`: A vector of values to assign to the input nodes.
+    ///
+    /// Panics if the number of inputs does not match the number of input nodes.
     pub fn fill_nodes(&mut self, inputs: Vec<u32>) {
         if inputs.len() != self.input_nodes_count {
             error!(
@@ -243,7 +286,7 @@ impl Builder {
                 "ERR_INPUT_COUNT_MISMATCH – Number of inputs does not match the number of input nodes"
             );
         }
-        // First, set input values
+        // Set input values
         let mut input_idx = 0;
         for node in &mut self.nodes {
             if node.is_input {
@@ -257,16 +300,10 @@ impl Builder {
 
         // Propagate values through the graph
         let num_nodes = self.nodes.len();
-        let mut changed = true;
-        // TODO: Make this while loop cleaner
-        while changed {
-            changed = false;
-            for i in 0..num_nodes {
-                if self.nodes[i].value.is_none() {
-                    if let Some(computed_value) = self.compute_node_value(i) {
-                        self.nodes[i].value = Some(computed_value);
-                        changed = true;
-                    }
+        for i in 0..num_nodes {
+            if self.nodes[i].value.is_none() {
+                if let Some(computed_value) = self.compute_node_value(i) {
+                    self.nodes[i].value = Some(computed_value);
                 }
             }
         }
@@ -277,8 +314,9 @@ impl Builder {
         }
     }
 
-    /// Given a graph that has `fill_nodes` already called on it
-    /// checks that all the constraints hold.
+    /// Checks that all the constraints in the graph hold.
+    ///
+    /// Returns `true` if all constraints are satisfied, otherwise `false`.
     pub fn check_constraints(&self) -> bool {
         for (a, b) in &self.constraints {
             match (self.nodes[*a].value, self.nodes[*b].value) {
@@ -303,8 +341,13 @@ impl Builder {
         true
     }
 
-    /// Creates a new node with the hint function applied to the value of the source node.
-    /// Allows you to perform operations like division or computing square roots.
+    /// Creates a new node with a hint function applied to the value of the source node.
+    ///
+    /// # Parameters
+    /// - `source_node`: The index of the source node.
+    /// - `hint_function`: A function that computes the value of the new node based on the source node.
+    ///
+    /// Returns the index of the newly created node.
     pub fn hint<F>(&mut self, source_node: usize, hint_function: F) -> usize
     where
         F: Fn(u32) -> u32 + 'static,
@@ -327,13 +370,19 @@ impl Builder {
         new_node_idx
     }
 
+    /// Prints the current state of the graph for debugging purposes.
     pub fn print_graph(&self) {
         for (i, node) in self.nodes.iter().enumerate() {
             println!("Node {}: {:?}", i, node.value);
         }
     }
 
-    // Helper method to get node value (for testing/debugging)
+    /// Retrieves the value of a node by its index.
+    ///
+    /// # Parameters
+    /// - `node_idx`: The index of the node.
+    ///
+    /// Returns an `Option<u32>` containing the node's value if it exists.
     pub fn get_value(&self, node_idx: usize) -> Option<u32> {
         self.nodes[node_idx].value
     }
