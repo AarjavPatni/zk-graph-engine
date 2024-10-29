@@ -105,10 +105,9 @@ impl Node {
     }
 }
 
-/// Methods for the `Builder` struct.
-impl Builder {
-    /// Creates a new `Builder`.
-    pub fn new() -> Self {
+/// Default implementation for the `Builder` struct.
+impl Default for Builder {
+    fn default() -> Self {
         // Initialize the logger once
         static INIT: Once = Once::new();
         INIT.call_once(|| {
@@ -124,6 +123,14 @@ impl Builder {
             hints: HashMap::new(),
             input_nodes_count: 0,
         }
+    }
+}
+
+/// Methods for the `Builder` struct.
+impl Builder {
+    /// Creates a new `Builder` instance.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Initializes an input node in the graph.
