@@ -8,13 +8,13 @@
 //! - Input nodes and constant values
 //! - Constraint checking between nodes
 //! - Hint system for custom operations
-//! - Verbose logging support for debugging
+//! - Logging support for debugging
 //!
 //! ## Example
 //! ```rust
 //! use zk_graph_engine::Builder;
 //!
-//! let mut builder = Builder::new(true);
+//! let mut builder = Builder::new();
 //! let x = builder.init();  // Create input node
 //! let y = builder.constant(5);  // Create constant node
 //! let sum = builder.add(x, y);  // Add nodes
@@ -24,8 +24,8 @@
 //! ```
 
 use log::{debug, error, info};
-use simple_logger::SimpleLogger;
 use std::sync::Once;
+use std::env;
 
 /// A builder for creating and managing computational graphs.
 ///
@@ -38,13 +38,11 @@ use std::sync::Once;
 /// - `constraints`: List of pairs of node indices that must be equal.
 /// - `hints`: List of tuples containing a target node index, a source node index, and a hint function.
 /// - `input_nodes_count`: Number of input nodes.
-/// - `verbose`: Whether to print debug information.
 pub struct Builder {
     nodes: Vec<Box<Node>>,
     constraints: Vec<(usize, usize)>,
     hints: Vec<(usize, usize, Box<dyn Fn(u32) -> u32>)>,
     input_nodes_count: usize,
-    verbose: bool,
 }
 
 /// Enum representing the types of operations that can be performed on nodes.
@@ -67,7 +65,6 @@ enum Operation {
 /// - `value`: The value of the node, if it has been computed.
 /// - `operation`: The operation used to compute the node.
 /// - `is_input`: Whether the node is an input node.
-/// 
 struct Node {
     value: Option<u32>,
     operation: Operation,
@@ -98,16 +95,14 @@ impl Node {
 /// Methods for the `Builder` struct.
 impl Builder {
     /// Creates a new `Builder`.
-    ///
-    /// # Parameters
-    /// - `verbose`: If true, enables logging of operations for debugging purposes.
-    pub fn new(verbose: bool) -> Self {
+    pub fn new() -> Self {
         // Initialize the logger once
         static INIT: Once = Once::new();
         INIT.call_once(|| {
-            if verbose {
-                SimpleLogger::new().init().unwrap();
+            if env::var("RUST_LOG").is_err() {
+                env::set_var("RUST_LOG", "off");
             }
+            env_logger::init();
         });
 
         Self {
@@ -115,7 +110,6 @@ impl Builder {
             constraints: vec![],
             hints: vec![],
             input_nodes_count: 0,
-            verbose,
         }
     }
 
@@ -127,9 +121,7 @@ impl Builder {
         self.nodes.push(node);
         self.input_nodes_count += 1;
         let idx = self.nodes.len() - 1;
-        if self.verbose {
-            info!("INIT_INPUT – node {}", idx);
-        }
+        info!("INIT_INPUT – node {}", idx);
         idx
     }
 
@@ -143,9 +135,7 @@ impl Builder {
         let node = Box::new(Node::new_const(value));
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
-        if self.verbose {
-            debug!("INIT_CONST – node {} = {}", idx, value);
-        }
+        debug!("INIT_CONST – node {} = {}", idx, value);
         idx
     }
 
@@ -164,9 +154,7 @@ impl Builder {
         });
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
-        if self.verbose {
-            info!("SET_ADD_OPT – node {} = node {} + node {}", idx, a, b);
-        }
+        info!("SET_ADD_OPT – node {} = node {} + node {}", idx, a, b);
         idx
     }
 
@@ -185,9 +173,7 @@ impl Builder {
         });
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
-        if self.verbose {
-            info!("SET_MUL_OPT – node {} = node {} * node {}", idx, a, b);
-        }
+        info!("SET_MUL_OPT – node {} = node {} * node {}", idx, a, b);
         idx
     }
 
@@ -198,9 +184,7 @@ impl Builder {
     /// - `b`: The index of the second node.
     pub fn assert_equal(&mut self, a: usize, b: usize) {
         self.constraints.push((a, b));
-        if self.verbose {
-            info!("SET_CONSTRAINT – Assert node {} == node {}", a, b);
-        }
+        info!("SET_CONSTRAINT – Assert node {} == node {}", a, b);
     }
 
     /// Computes the value of a node based on its operation.
@@ -291,9 +275,7 @@ impl Builder {
         for node in &mut self.nodes {
             if node.is_input {
                 node.value = Some(inputs[input_idx]);
-                if self.verbose {
-                    debug!("SET_INPUT – node {} = {}", input_idx, inputs[input_idx]);
-                }
+                debug!("SET_INPUT – node {} = {}", input_idx, inputs[input_idx]);
                 input_idx += 1;
             }
         }
@@ -308,10 +290,8 @@ impl Builder {
             }
         }
 
-        if self.verbose {
-            info!("FILL_NODES – Input nodes filled and values propagated");
-            // TODO: Log final graph state
-        }
+        info!("FILL_NODES – Input nodes filled and values propagated");
+        // TODO: Log final graph state
     }
 
     /// Checks that all the constraints in the graph hold.
@@ -321,18 +301,14 @@ impl Builder {
         for (a, b) in &self.constraints {
             match (self.nodes[*a].value, self.nodes[*b].value) {
                 (Some(val_a), Some(val_b)) if val_a != val_b => {
-                    if self.verbose {
-                        error!(
-                            "ERR_FAILED_CONSTRAINT – node {} (value {}) != node {} (value {})",
-                            a, val_a, b, val_b
-                        );
-                    }
+                    error!(
+                        "ERR_FAILED_CONSTRAINT – node {} (value {}) != node {} (value {})",
+                        a, val_a, b, val_b
+                    );
                     return false;
                 }
                 (None, _) | (_, None) => {
-                    if self.verbose {
-                        error!("ERR_FAILED_CONSTRAINT – uninitialized node values");
-                    }
+                    error!("ERR_FAILED_CONSTRAINT – uninitialized node values");
                     return false;
                 }
                 _ => continue,
@@ -361,12 +337,10 @@ impl Builder {
         self.nodes.push(new_node);
         self.hints
             .push((new_node_idx, source_node, Box::new(hint_function)));
-        if self.verbose {
-            info!(
-                "SET_HINT – node {} based on node {}",
-                new_node_idx, source_node
-            );
-        }
+        info!(
+            "SET_HINT – node {} based on node {}",
+            new_node_idx, source_node
+        );
         new_node_idx
     }
 
@@ -403,7 +377,7 @@ mod tests {
     fn test_x_squared_plus_x_plus_5() {
         // Example 1: f(x) = x^2 + x + 5
 
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let x_squared = builder.mul(x, x);
         let five = builder.constant(5);
@@ -425,7 +399,7 @@ mod tests {
         //     c = b / 8
         //     return c
 
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let a = builder.init();
         let one = builder.constant(1);
         let b = builder.add(a, one);
@@ -446,7 +420,7 @@ mod tests {
         //
         // Assume that x+7 is a perfect square (so x = 2 or 9, etc.).
 
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let seven = builder.constant(7);
         let x_plus_seven = builder.add(x, seven);
@@ -461,7 +435,7 @@ mod tests {
 
     #[test]
     fn test_zero_and_negative_values() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let zero = builder.constant(0);
         let negative_five = builder.constant(-5i32 as u32); // Cast to u32 for test
@@ -479,7 +453,7 @@ mod tests {
     #[allow(unconditional_panic)]
     #[should_panic(expected = "ERR_DIV_BY_ZERO – Attempt to divide by zero")]
     fn test_division_by_zero() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let _x = builder.init();
         let _zero = builder.constant(0);
         let one = builder.constant(1);
@@ -492,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_addition_overflow() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let max = builder.constant(u32::MAX);
         let one = builder.constant(1);
         let sum = builder.add(max, one);
@@ -505,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_multiple_operations() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let a = builder.init();
         let b = builder.init();
         let c = builder.mul(a, b);
@@ -521,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_unconnected_nodes() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let _y = builder.init(); // Unconnected node
         let z = builder.constant(10);
@@ -535,7 +509,7 @@ mod tests {
 
     #[test]
     fn test_large_numbers() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let a = builder.constant(u32::MAX);
         let b = builder.constant(1);
 
@@ -548,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_all_inputs() {
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let y = builder.init();
         let add = builder.add(x, y);
@@ -561,7 +535,7 @@ mod tests {
     #[test]
     fn test_large_multiplication() {
         // Test multiplication with large numbers to check for overflow handling
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let large_value = builder.constant(u32::MAX);
         let result = builder.mul(large_value, large_value);
 
@@ -573,7 +547,7 @@ mod tests {
     #[test]
     fn test_zero_multiplication() {
         // Test multiplication by zero
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let zero = builder.constant(0);
         let value = builder.constant(12345);
         let result = builder.mul(zero, value);
@@ -586,7 +560,7 @@ mod tests {
     #[test]
     fn test_zero_addition() {
         // Test addition with zero
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let zero = builder.constant(0);
         let value = builder.constant(12345);
         let result = builder.add(zero, value);
@@ -599,7 +573,7 @@ mod tests {
     #[test]
     fn test_negative_values_handling() {
         // Test handling of negative values (cast to u32)
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let negative_value = builder.constant(-1i32 as u32);
         let value = builder.constant(1);
         let result = builder.add(negative_value, value);
@@ -613,7 +587,7 @@ mod tests {
     #[test]
     fn test_hint_function_edge_case() {
         // Test hint function with a division that could potentially be zero
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let value = builder.constant(8);
         let hint_node = builder.hint(value, |v| v / 8);
 
@@ -625,7 +599,7 @@ mod tests {
     #[test]
     fn test_multiple_constraints() {
         // Test multiple constraints
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let y = builder.constant(10);
         let sum = builder.add(x, y);
@@ -641,7 +615,7 @@ mod tests {
     #[test]
     fn test_uninitialized_node_constraint() {
         // Test constraint on uninitialized nodes
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let y = builder.init();
         builder.assert_equal(x, y);
@@ -653,7 +627,7 @@ mod tests {
     #[test]
     fn test_no_input_nodes() {
         // Test behavior with no input nodes
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let constant = builder.constant(42);
 
         builder.fill_nodes(vec![]); // No inputs provided
@@ -664,7 +638,7 @@ mod tests {
     #[test]
     fn test_all_operations_combined() {
         // Test a combination of all operations
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let x = builder.init();
         let y = builder.constant(5);
         let z = builder.add(x, y);
@@ -682,7 +656,7 @@ mod tests {
     #[should_panic(expected = "ERR_DIV_BY_ZERO – Attempt to divide by zero")]
     fn test_edge_case_division_by_zero_hint() {
         // Test hint function that could cause division by zero
-        let mut builder = Builder::new(true);
+        let mut builder = Builder::new();
         let zero = builder.constant(0);
         let hint_node = builder.hint(zero, |_| 1 / 0); // Intentional division by zero
 

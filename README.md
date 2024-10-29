@@ -20,9 +20,35 @@ This implementation assumes the following design decisions:
 - Division by zero should panic with a clear error message.
 
 
+## Testing
+
+The library includes a comprehensive suite of tests that cover various use cases and edge cases.
+
+To run all tests:
+
+```bash
+cargo test
+```
+
+To run tests with verbose logging:
+
+```bash
+RUST_LOG=info cargo test
+```
+
+You can change the logging level by setting the `RUST_LOG` environment variable to the desired level in the order of `off`, `error`, `warn`, `info`, `debug`.
+
+Since the tests are run in parallel, the logging output may be interleaved. To avoid this, you can also run the tests sequentially:
+
+```bash
+cargo test -- --test-threads=1
+```
+
+
 ## Usage
 
 Will be updated once the library is published.
+
 
 ## Future Improvements
 
