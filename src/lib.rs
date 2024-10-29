@@ -1,9 +1,14 @@
+use log::{debug, error, info, warn};
+use simple_logger::SimpleLogger;
+use std::sync::Once;
+
 /// A builder that will be used to create a computational graph.
 pub struct Builder {
     nodes: Vec<Box<Node>>,
     constraints: Vec<(usize, usize)>,
     hints: Vec<(usize, usize, Box<dyn Fn(u32) -> u32>)>,
     input_nodes_count: usize,
+    verbose: bool,
 }
 
 enum Operation {
@@ -43,12 +48,21 @@ impl Node {
 
 impl Builder {
     /// Creates a new builder.
-    pub fn new() -> Self {
+    pub fn new(verbose: bool) -> Self {
+        // Initialize the logger once
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            if verbose {
+                SimpleLogger::new().init().unwrap();
+            }
+        });
+
         Self {
             nodes: vec![],
             constraints: vec![],
             hints: vec![],
             input_nodes_count: 0,
+            verbose,
         }
     }
 
@@ -58,6 +72,9 @@ impl Builder {
         self.nodes.push(node);
         self.input_nodes_count += 1;
         let idx = self.nodes.len() - 1;
+        if self.verbose {
+            info!("INIT_INPUT – node {}", idx);
+        }
         idx
     }
 
@@ -66,6 +83,9 @@ impl Builder {
         let node = Box::new(Node::new_const(value));
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
+        if self.verbose {
+            info!("INIT_CONST – node {} = {}", idx, value);
+        }
         idx
     }
 
@@ -78,6 +98,9 @@ impl Builder {
         });
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
+        if self.verbose {
+            info!("SET_ADD_OPT – node {} = node {} + node {}", idx, a, b);
+        }
         idx
     }
 
@@ -90,12 +113,18 @@ impl Builder {
         });
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
+        if self.verbose {
+            info!("SET_MUL_OPT – node {} = node {} * node {}", idx, a, b);
+        }
         idx
     }
 
     /// Asserts that 2 nodes are equal.
     pub fn assert_equal(&mut self, a: usize, b: usize) {
         self.constraints.push((a, b));
+        if self.verbose {
+            info!("SET_CONSTRAINT – Assert node {} == node {}", a, b);
+        }
     }
 
     /// Helper method to compute the value of a node based on its operation.
@@ -108,8 +137,13 @@ impl Builder {
                 let a_val = self.nodes[*a].value?;
                 let b_val = self.nodes[*b].value?;
                 if let Some(val) = a_val.checked_add(b_val) {
+                    debug!("COMPUTE_ADD – node {} = node {} + node {}", node_idx, a, b);
                     Some(val)
                 } else {
+                    error!(
+                        "ERR_OVERFLOW_ADD – Overflow when adding {} and {}",
+                        a_val, b_val
+                    );
                     None
                 }
             }
@@ -117,8 +151,13 @@ impl Builder {
                 let a_val = self.nodes[*a].value?;
                 let b_val = self.nodes[*b].value?;
                 if let Some(val) = a_val.checked_mul(b_val) {
+                    debug!("COMPUTE_MUL – node {} = node {} * node {}", node_idx, a, b);
                     Some(val)
                 } else {
+                    error!(
+                        "ERR_OVERFLOW_MUL – Overflow when multiplying {} and {}",
+                        a_val, b_val
+                    );
                     None
                 }
             }
@@ -137,7 +176,8 @@ impl Builder {
                         match result {
                             Ok(val) => Some(val),
                             Err(_) => {
-                                panic!("Error: Attempt to divide by zero");
+                                error!("ERR_DIV_BY_ZERO – Attempt to divide by zero");
+                                panic!("ERR_DIV_BY_ZERO – Attempt to divide by zero");
                             }
                         }
                     } else {
@@ -153,13 +193,21 @@ impl Builder {
     /// Fills in all the nodes of the graph based on some inputs.
     pub fn fill_nodes(&mut self, inputs: Vec<u32>) {
         if inputs.len() != self.input_nodes_count {
-            panic!("Number of inputs does not match the number of input nodes");
+            error!(
+                "ERR_INPUT_COUNT_MISMATCH – Number of inputs does not match the number of input nodes"
+            );
+            panic!(
+                "ERR_INPUT_COUNT_MISMATCH – Number of inputs does not match the number of input nodes"
+            );
         }
         // First, set input values
         let mut input_idx = 0;
         for node in &mut self.nodes {
             if node.is_input {
                 node.value = Some(inputs[input_idx]);
+                if self.verbose {
+                    debug!("SET_INPUT – node {} = {}", input_idx, inputs[input_idx]);
+                }
                 input_idx += 1;
             }
         }
@@ -167,6 +215,7 @@ impl Builder {
         // Propagate values through the graph
         let num_nodes = self.nodes.len();
         let mut changed = true;
+        // TODO: Make this while loop cleaner
         while changed {
             changed = false;
             for i in 0..num_nodes {
@@ -178,6 +227,11 @@ impl Builder {
                 }
             }
         }
+
+        if self.verbose {
+            info!("FILL_NODES – Input nodes filled and values propagated");
+            // TODO: Log final graph state
+        }
     }
 
     /// Given a graph that has `fill_nodes` already called on it
@@ -186,9 +240,18 @@ impl Builder {
         for (a, b) in &self.constraints {
             match (self.nodes[*a].value, self.nodes[*b].value) {
                 (Some(val_a), Some(val_b)) if val_a != val_b => {
+                    if self.verbose {
+                        error!(
+                            "ERR_FAILED_CONSTRAINT – node {} (value {}) != node {} (value {})",
+                            a, val_a, b, val_b
+                        );
+                    }
                     return false;
                 }
                 (None, _) | (_, None) => {
+                    if self.verbose {
+                        error!("ERR_FAILED_CONSTRAINT – uninitialized node values");
+                    }
                     return false;
                 }
                 _ => continue,
@@ -197,8 +260,8 @@ impl Builder {
         true
     }
 
-    /// An API for hinting values that allows you to perform operations
-    /// like division or computing square roots.
+    /// Creates a new node with the hint function applied to the value of the source node.
+    /// Allows you to perform operations like division or computing square roots.
     pub fn hint<F>(&mut self, source_node: usize, hint_function: F) -> usize
     where
         F: Fn(u32) -> u32 + 'static,
@@ -212,6 +275,12 @@ impl Builder {
         self.nodes.push(new_node);
         self.hints
             .push((new_node_idx, source_node, Box::new(hint_function)));
+        if self.verbose {
+            info!(
+                "SET_HINT – node {} based on node {}",
+                new_node_idx, source_node
+            );
+        }
         new_node_idx
     }
 
@@ -221,6 +290,7 @@ impl Builder {
         }
     }
 
+    // Helper method to get node value (for testing/debugging)
     pub fn get_value(&self, node_idx: usize) -> Option<u32> {
         self.nodes[node_idx].value
     }
@@ -241,7 +311,7 @@ mod tests {
     fn test_x_squared_plus_x_plus_5() {
         // f(x) = x^2 + x + 5
 
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(true);
         let x = builder.init();
         let x_squared = builder.mul(x, x);
         let five = builder.constant(5);
@@ -263,7 +333,7 @@ mod tests {
         //     c = b / 8
         //     return c
 
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(true);
         let a = builder.init();
         let one = builder.constant(1);
         let b = builder.add(a, one);
@@ -284,7 +354,7 @@ mod tests {
         //
         // Assume that x+7 is a perfect square (so x = 2 or 9, etc.).
 
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(true);
         let x = builder.init();
         let seven = builder.constant(7);
         let x_plus_seven = builder.add(x, seven);
@@ -299,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_zero_and_negative_values() {
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(true);
         let x = builder.init();
         let zero = builder.constant(0);
         let negative_five = builder.constant(-5i32 as u32); // Cast to u32 for test
@@ -315,9 +385,9 @@ mod tests {
 
     #[test]
     #[allow(unconditional_panic)]
-    #[should_panic(expected = "Error: Attempt to divide by zero")]
+    #[should_panic(expected = "ERR_DIV_BY_ZERO – Attempt to divide by zero")]
     fn test_division_by_zero() {
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(true);
         let _x = builder.init();
         let _zero = builder.constant(0);
         let one = builder.constant(1);
@@ -330,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_addition_overflow() {
-        let mut builder = Builder::new();
+        let mut builder = Builder::new(true);
         let max = builder.constant(u32::MAX);
         let one = builder.constant(1);
         let sum = builder.add(max, one);

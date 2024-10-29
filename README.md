@@ -12,6 +12,14 @@ This Rust library provides a framework for creating and executing computational 
 - [ ]  **Verbose Logging**: Configurable logging for debugging and monitoring purposes.
 
 
+## Assumptions
+
+This implementation assumes the following design decisions:
+
+- Addition and multiplication overflow errors shouldn't panic but return `None` instead, along with an error log message.
+- Division by zero should panic with a clear error message.
+
+
 ## Usage
 
 Will be updated once the library is published.
