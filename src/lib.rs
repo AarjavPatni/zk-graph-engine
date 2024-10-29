@@ -310,7 +310,6 @@ impl Builder {
         }
 
         info!("FILL_NODES – Input nodes filled and values propagated");
-        // TODO: Log final graph state
     }
 
     /// Checks that all the constraints in the graph hold.
