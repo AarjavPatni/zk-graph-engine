@@ -1,7 +1,13 @@
-//! A computational graph library for mathematical operations.
+//! A computational graph library for zero-knowledge proofs.
 //!
 //! This crate provides a builder pattern for creating and executing computational graphs
-//! with support for basic arithmetic operations, constraints, and hints.
+//! with support for arithmetic operations, constraints, and hints.
+//!
+//! This is designed to be used in zero-knowledge proofs, where we are interested in proving
+//! a statement which states that a function f evaluated at inputs (x_1, ..., x_n) results in
+//! an output (y_1, ..., y_n). This function is represented as a computational graph, where each
+//! node is an integer and relationships between nodes are defined by addition, multiplication,
+//! or equality.
 //!
 //! ## Features
 //! - Basic arithmetic operations (addition, multiplication)
