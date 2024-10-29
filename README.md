@@ -1,4 +1,4 @@
-# ZK Graph Engine – Computational Graph Library
+# ZK Graph Engine
 
 This Rust library provides a framework for creating and executing computational graphs with support for basic arithmetic operations, constraints, and hints. It is designed to be robust, efficient, and suitable for production environments.
 
@@ -54,5 +54,5 @@ Will be updated once the library is published.
 ## Future Improvements
 
 - [ ] **Hint using multiple nodes**: Allow hints to use multiple nodes directly to compute the value.
-- [ ]  **Topological Traversal**: Implement a method to traverse the graph in topological order, making the overall computation more efficient.
-- [ ]  **Graph Visualization**: Implement a method to visualize the graph using a library like `petgraph` or `dot` for better debugging and monitoring.
+- [ ] **Topological Traversal**: Implement a method to traverse the graph in topological order, making the overall computation more efficient.
+- [ ] **Graph Visualization**: Implement a method to visualize the graph using a library like `petgraph` or `dot` for better debugging and monitoring.
