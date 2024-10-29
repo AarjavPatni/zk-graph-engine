@@ -2,6 +2,14 @@
 
 This Rust library provides a framework for creating and executing computational graphs with support for basic arithmetic operations, constraints, and hints. It is designed to be robust, efficient, and suitable for production environments.
 
+
+## Installation
+
+```bash
+cargo add zk-graph-engine
+```
+
+
 ## Basic Features
 
 - [x]  **Basic Arithmetic Operations**: Supports addition and multiplication of nodes.
@@ -21,7 +29,7 @@ This implementation assumes the following design decisions:
 - Invalid hint functions (e.g., division by zero) shouldn't panic but return `None` instead, along with a clear error message.
 
 
-## Testing
+## Local Testing
 
 The library includes a comprehensive suite of tests that cover various use cases and edge cases.
 
@@ -48,8 +56,39 @@ cargo test -- --test-threads=1
 
 ## Usage
 
-Will be updated once the library is published.
+Here is a simple example of creating and executing a computational graph:
 
+```rust
+use zk_graph_engine::Builder;
+
+let mut builder = Builder::new();
+let x = builder.init();
+let one = builder.constant(1);
+let y = builder.add(x, one);
+builder.fill_nodes(vec![3]);
+assert_eq!(builder.get_value(y).unwrap(), 4);
+```
+
+You can also add constraints to ensure the values of two nodes are equal:
+
+```rust
+let x = builder.init();
+let y = builder.init();
+builder.add_constraint(x, y);
+builder.fill_nodes(vec![3, 4]);
+assert_eq!(builder.get_value(x).unwrap(), 4);
+assert_eq!(builder.get_value(y).unwrap(), 3);
+```
+
+You can also use hints to compute the value of a node based on the value of another node:
+
+```rust
+let x = builder.init();
+let hint_func = |x| x * x;
+let y = builder.hint(x, hint_func);
+builder.fill_nodes(vec![3]);
+assert_eq!(builder.get_value(y).unwrap(), 9);
+```
 
 ## Future Improvements
 
