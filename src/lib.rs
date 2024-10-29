@@ -34,6 +34,12 @@ use std::collections::HashMap;
 use std::env;
 use std::sync::Once;
 
+/// Type alias for hint functions that take and return u32
+type HintFn = Box<dyn Fn(u32) -> u32>;
+
+/// Type alias for hint storage containing source node index and hint function
+type HintEntry = (usize, HintFn);
+
 /// A builder for creating and managing computational graphs.
 ///
 /// The `Builder` struct allows for the construction of computational graphs
@@ -48,7 +54,7 @@ use std::sync::Once;
 pub struct Builder {
     nodes: Vec<Node>,
     constraints: Vec<(usize, usize)>,
-    hints: HashMap<usize, (usize, Box<dyn Fn(u32) -> u32>)>,
+    hints: HashMap<usize, HintEntry>,
     input_nodes_count: usize,
 }
 
