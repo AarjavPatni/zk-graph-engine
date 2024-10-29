@@ -71,12 +71,26 @@ impl Builder {
 
     /// Adds 2 nodes in the graph, returning a new node.
     pub fn add(&mut self, a: usize, b: usize) -> usize {
-        todo!()
+        let node = Box::new(Node {
+            value: None,
+            operation: Operation::Add(a, b),
+            is_input: false,
+        });
+        self.nodes.push(node);
+        let idx = self.nodes.len() - 1;
+        idx
     }
 
     /// Multiplies 2 nodes in the graph, returning a new node.
     pub fn mul(&mut self, a: usize, b: usize) -> usize {
-        todo!()
+        let node = Box::new(Node {
+            value: None,
+            operation: Operation::Mul(a, b),
+            is_input: false,
+        });
+        self.nodes.push(node);
+        let idx = self.nodes.len() - 1;
+        idx
     }
 
     /// Asserts that 2 nodes are equal.
