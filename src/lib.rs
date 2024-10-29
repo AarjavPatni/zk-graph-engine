@@ -410,4 +410,191 @@ mod tests {
         assert_eq!(builder.get_value(final_sum), None); // Overflow returns None
         assert!(builder.check_constraints());
     }
+
+    #[test]
+    fn test_multiple_operations() {
+        let mut builder = Builder::new(true);
+        let a = builder.init();
+        let b = builder.init();
+        let c = builder.mul(a, b);
+        let d = builder.add(c, a);
+        let e = builder.mul(d, b);
+
+        builder.fill_nodes(vec![2, 3]); // a = 2, b = 3
+        assert_eq!(builder.get_value(c).unwrap(), 6); // 2 * 3
+        assert_eq!(builder.get_value(d).unwrap(), 8); // 6 + 2
+        assert_eq!(builder.get_value(e).unwrap(), 24); // 8 * 3
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_unconnected_nodes() {
+        let mut builder = Builder::new(true);
+        let x = builder.init();
+        let _y = builder.init(); // Unconnected node
+        let z = builder.constant(10);
+
+        let add = builder.add(x, z);
+
+        builder.fill_nodes(vec![5, 0]); // x = 5, y = 0 (unused)
+        assert_eq!(builder.get_value(add).unwrap(), 15); // 5 + 10
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_large_numbers() {
+        let mut builder = Builder::new(true);
+        let a = builder.constant(u32::MAX);
+        let b = builder.constant(1);
+
+        let sum = builder.add(a, b);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(sum), None); // Overflow check
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_all_inputs() {
+        let mut builder = Builder::new(true);
+        let x = builder.init();
+        let y = builder.init();
+        let add = builder.add(x, y);
+
+        builder.fill_nodes(vec![3, 4]); // x = 3, y = 4
+        assert_eq!(builder.get_value(add).unwrap(), 7); // 3 + 4
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_large_multiplication() {
+        // Test multiplication with large numbers to check for overflow handling
+        let mut builder = Builder::new(true);
+        let large_value = builder.constant(u32::MAX);
+        let result = builder.mul(large_value, large_value);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(result), None); // Expected overflow
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_zero_multiplication() {
+        // Test multiplication by zero
+        let mut builder = Builder::new(true);
+        let zero = builder.constant(0);
+        let value = builder.constant(12345);
+        let result = builder.mul(zero, value);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(result).unwrap(), 0);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_zero_addition() {
+        // Test addition with zero
+        let mut builder = Builder::new(true);
+        let zero = builder.constant(0);
+        let value = builder.constant(12345);
+        let result = builder.add(zero, value);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(result).unwrap(), 12345);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_negative_values_handling() {
+        // Test handling of negative values (cast to u32)
+        let mut builder = Builder::new(true);
+        let negative_value = builder.constant(-1i32 as u32);
+        let value = builder.constant(1);
+        let result = builder.add(negative_value, value);
+
+        builder.fill_nodes(vec![]);
+        builder.print_graph();
+        assert_eq!(builder.get_value(result), None); // -1 + 1 = 0 in signed, but here it should be max value + 1
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_hint_function_edge_case() {
+        // Test hint function with a division that could potentially be zero
+        let mut builder = Builder::new(true);
+        let value = builder.constant(8);
+        let hint_node = builder.hint(value, |v| v / 8);
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(hint_node).unwrap(), 1);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_multiple_constraints() {
+        // Test multiple constraints
+        let mut builder = Builder::new(true);
+        let x = builder.init();
+        let y = builder.constant(10);
+        let sum = builder.add(x, y);
+        let expected_sum = builder.constant(15);
+
+        builder.assert_equal(sum, expected_sum);
+        builder.fill_nodes(vec![5]);
+
+        assert_eq!(builder.get_value(sum).unwrap(), 15);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_uninitialized_node_constraint() {
+        // Test constraint on uninitialized nodes
+        let mut builder = Builder::new(true);
+        let x = builder.init();
+        let y = builder.init();
+        builder.assert_equal(x, y);
+
+        builder.fill_nodes(vec![10, 10]);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_no_input_nodes() {
+        // Test behavior with no input nodes
+        let mut builder = Builder::new(true);
+        let constant = builder.constant(42);
+
+        builder.fill_nodes(vec![]); // No inputs provided
+        assert_eq!(builder.get_value(constant).unwrap(), 42);
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    fn test_all_operations_combined() {
+        // Test a combination of all operations
+        let mut builder = Builder::new(true);
+        let x = builder.init();
+        let y = builder.constant(5);
+        let z = builder.add(x, y);
+        let w = builder.mul(z, y);
+        let hint = builder.hint(w, |val| val / 2);
+        let final_sum = builder.add(hint, y);
+
+        builder.fill_nodes(vec![3]);
+        assert_eq!(builder.get_value(final_sum).unwrap(), 25); // ((3 + 5) * 5) / 2 + 5
+        assert!(builder.check_constraints());
+    }
+
+    #[test]
+    #[allow(unconditional_panic)]
+    #[should_panic(expected = "ERR_DIV_BY_ZERO – Attempt to divide by zero")]
+    fn test_edge_case_division_by_zero_hint() {
+        // Test hint function that could cause division by zero
+        let mut builder = Builder::new(true);
+        let zero = builder.constant(0);
+        let hint_node = builder.hint(zero, |_| 1 / 0); // Intentional division by zero
+
+        builder.fill_nodes(vec![]);
+        assert_eq!(builder.get_value(hint_node), None); // Division by zero should result in None
+    }
 }
