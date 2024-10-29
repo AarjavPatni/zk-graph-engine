@@ -53,6 +53,5 @@ Will be updated once the library is published.
 
 ## Future Improvements
 
-- [ ]  **Graceful Error Handling**: Instead of panicking, the library should return a `Result` type for an improved developer experience.
 - [ ]  **Topological Traversal**: Implement a method to traverse the graph in topological order, making the overall computation more efficient.
 - [ ]  **Graph Visualization**: Implement a method to visualize the graph using a library like `petgraph` or `dot` for better debugging and monitoring.

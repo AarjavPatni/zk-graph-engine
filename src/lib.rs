@@ -565,4 +565,42 @@ mod tests {
         builder.fill_nodes(vec![10, 10]);
         assert!(builder.check_constraints());
     }
+
+    #[test]
+    fn test_bit_decomposition() {
+        // Example 13: Bit decomposition
+        let mut builder = Builder::new();
+
+        // The value to decompose
+        let x = builder.init();
+
+        let mut bits = Vec::new();
+        let zero = builder.constant(0);
+
+        // Decompose x into bits
+        for i in 0..32 {
+            let bit = builder.hint(x, move |val| (val >> i) & 1);
+            bits.push(bit);
+
+            // Ensure each bit is either 0 or 1
+            let product = builder.hint(bit, |val| val * (1 - val));
+            builder.assert_equal(product, zero);
+        }
+
+        // Reconstruct x from its bits
+        let mut reconstructed_x = builder.constant(0);
+        for (i, &bit) in bits.iter().enumerate() {
+            let two_i = builder.constant(1 << i);
+            let bit_value = builder.mul(bit, two_i);
+            reconstructed_x = builder.add(reconstructed_x, bit_value);
+        }
+
+        // Ensure the reconstructed value equals the original x
+        builder.assert_equal(reconstructed_x, x);
+
+        builder.fill_nodes(vec![50]);
+
+        assert!(builder.check_constraints());
+        assert_eq!(builder.get_value(reconstructed_x).unwrap(), 50);
+    }
 }
