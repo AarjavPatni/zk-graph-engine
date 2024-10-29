@@ -46,7 +46,7 @@ use std::sync::Once;
 /// - `hints`: List of tuples containing a target node index, a source node index, and a hint function.
 /// - `input_nodes_count`: Number of input nodes.
 pub struct Builder {
-    nodes: Vec<Box<Node>>,
+    nodes: Vec<Node>,
     constraints: Vec<(usize, usize)>,
     hints: HashMap<usize, (usize, Box<dyn Fn(u32) -> u32>)>,
     input_nodes_count: usize,
@@ -124,7 +124,7 @@ impl Builder {
     ///
     /// Returns the index of the newly created input node.
     pub fn init(&mut self) -> usize {
-        let node = Box::new(Node::new());
+        let node = Node::new();
         self.nodes.push(node);
         self.input_nodes_count += 1;
         let idx = self.nodes.len() - 1;
@@ -139,7 +139,7 @@ impl Builder {
     ///
     /// Returns the index of the newly created constant node.
     pub fn constant(&mut self, value: u32) -> usize {
-        let node = Box::new(Node::new_const(value));
+        let node = Node::new_const(value);
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
         debug!("INIT_CONST – node {} = {}", idx, value);
@@ -154,11 +154,11 @@ impl Builder {
     ///
     /// Returns the index of the newly created node.
     pub fn add(&mut self, a: usize, b: usize) -> usize {
-        let node = Box::new(Node {
+        let node = Node {
             value: None,
             operation: Operation::Add(a, b),
             is_input: false,
-        });
+        };
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
         info!("SET_ADD_OPT – node {} = node {} + node {}", idx, a, b);
@@ -173,11 +173,11 @@ impl Builder {
     ///
     /// Returns the index of the newly created node.
     pub fn mul(&mut self, a: usize, b: usize) -> usize {
-        let node = Box::new(Node {
+        let node = Node {
             value: None,
             operation: Operation::Mul(a, b),
             is_input: false,
-        });
+        };
         self.nodes.push(node);
         let idx = self.nodes.len() - 1;
         info!("SET_MUL_OPT – node {} = node {} * node {}", idx, a, b);
@@ -334,11 +334,11 @@ impl Builder {
     where
         F: Fn(u32) -> u32 + 'static,
     {
-        let new_node = Box::new(Node {
+        let new_node = Node {
             value: None,
             operation: Operation::Hint(source_node),
             is_input: false,
-        });
+        };
         let new_node_idx = self.nodes.len();
         self.nodes.push(new_node);
         self.hints
