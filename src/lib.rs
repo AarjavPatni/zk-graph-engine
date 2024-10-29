@@ -95,12 +95,69 @@ impl Builder {
 
     /// Asserts that 2 nodes are equal.
     pub fn assert_equal(&mut self, a: usize, b: usize) {
-        todo!()
+        self.constraints.push((a, b));
+    }
+
+    /// Helper method to compute the value of a node based on its operation.
+    fn compute_node_value(&self, node_idx: usize) -> Option<u32> {
+        let node = &self.nodes[node_idx];
+
+        match &node.operation {
+            Operation::None => node.value,
+            Operation::Add(a, b) => {
+                let a_val = self.nodes[*a].value?;
+                let b_val = self.nodes[*b].value?;
+                Some(a_val + b_val)
+            }
+            Operation::Mul(a, b) => {
+                let a_val = self.nodes[*a].value?;
+                let b_val = self.nodes[*b].value?;
+                Some(a_val * b_val)
+            }
+            // TODO: Implement HashMap for faster lookups
+            Operation::Hint(source) => {
+                if let Some(value) = self.nodes[*source].value {
+                    if let Some((_, _, hint_fn)) = self
+                        .hints
+                        .iter()
+                        .find(|(target, src, _)| *target == node_idx && *src == *source)
+                    {
+                        Some(hint_fn(value))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     /// Fills in all the nodes of the graph based on some inputs.
     pub fn fill_nodes(&mut self, inputs: Vec<u32>) {
-        todo!()
+        // First, set input values
+        let mut input_idx = 0;
+        for node in &mut self.nodes {
+            if node.is_input {
+                node.value = Some(inputs[input_idx]);
+                input_idx += 1;
+            }
+        }
+
+        // Propagate values through the graph
+        let num_nodes = self.nodes.len();
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for i in 0..num_nodes {
+                if self.nodes[i].value.is_none() {
+                    if let Some(computed_value) = self.compute_node_value(i) {
+                        self.nodes[i].value = Some(computed_value);
+                        changed = true;
+                    }
+                }
+            }
+        }
     }
 
     /// Given a graph that has `fill_nodes` already called on it
