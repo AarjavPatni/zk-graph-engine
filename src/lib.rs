@@ -303,8 +303,9 @@ impl Builder {
         let num_nodes = self.nodes.len();
         for i in 0..num_nodes {
             if self.nodes[i].value.is_none() {
-                if let Some(computed_value) = self.compute_node_value(i) {
-                    self.nodes[i].value = Some(computed_value);
+                match self.compute_node_value(i) {
+                    Some(val) => self.nodes[i].value = Some(val),
+                    None => error!("ERR_COMPUTATION – Failed to compute value for node {}", i),
                 }
             }
         }
