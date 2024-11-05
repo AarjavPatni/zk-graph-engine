@@ -52,7 +52,7 @@ You can change the logging level by setting the `RUST_LOG` environment variable 
 Since the tests are run in parallel, the logging output may be interleaved. To avoid this, you can also run the tests sequentially:
 
 ```bash
-cargo test -- --test-threads=1
+RUST_LOG=info cargo test -- --test-threads=1
 ```
 
 
