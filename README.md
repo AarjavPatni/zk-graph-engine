@@ -3,6 +3,17 @@
 This Rust library provides a framework for creating and executing computational graphs with support for basic arithmetic operations, constraints, and hints. It is designed to be robust, efficient, and suitable for production environments.
 
 
+## Motivation
+
+This repository focuses on zero-knowledge proofs where we demonstrate that a function f produces specific outputs when given certain inputs. The core concept can be expressed as:
+
+```
+f(x₁, ..., xₙ) = (y₁, ..., yₙ)
+```
+
+Given input vector (x₁, ..., xₙ) and output vector (y₁, ..., yₙ), the proof verifies the computational relationship between these values through the defined graph structure. The library allows the creation of such graphs and the computation of values based on the defined operations.
+
+
 ## Installation
 
 Once published, you should be able to install the crate using the following command:
